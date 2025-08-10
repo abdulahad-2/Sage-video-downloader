@@ -1,7 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import yt_dlp
+import os
+from pathlib import Path
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
@@ -21,45 +25,142 @@ app.add_middleware(
 class VideoURL(BaseModel):
     url: str
 
+# Ensure download directory exists and mount it for static serving
+BASE_DIR = Path(__file__).resolve().parent.parent
+DOWNLOAD_DIR = BASE_DIR / "downloads"
+DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# Serve downloaded files at /files
+app.mount("/files", StaticFiles(directory=str(DOWNLOAD_DIR)), name="files")
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok"}
+
+
 @app.post("/download")
 async def download_video(video_url: VideoURL):
-    url = video_url.url
-    ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-        'noplaylist': True,
-        'extract_flat': True,
-        'dump_single_json': True,
-        'restrictfilenames': True,
-        'quiet': True,
-        # 'no_warnings': True,
-        # 'ignoreerrors': True,
-        # 'simulate': True, # Only simulate, do not download
+    url = video_url.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    # Optional cookies support (e.g., Instagram/LinkedIn private or age-gated)
+    cookies_path = BASE_DIR / "cookies.txt"
+    use_cookies = cookies_path.exists()
+
+    # Base options shared for info extraction and for downloading
+    base_opts = {
+        "noplaylist": True,
+        "restrictfilenames": True,
+        "quiet": True,
+        "outtmpl": str(DOWNLOAD_DIR / "%(title).200B.%(ext)s"),
+        # Set a modern user agent and headers to improve compatibility
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+        },
+        # Ensure no postprocessing/merging is attempted without ffmpeg
+        "postprocessors": [],
+        # Do not read user/global yt-dlp config files that may set merging formats
+        "ignoreconfig": True,
     }
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            # For YouTube, the direct URL might be within 'formats'
-            # For other sites, 'url' might be the direct link or we need to look deeper
-            
-            # Prioritize direct_url if available, otherwise look for 'url' in formats
-            download_link = None
-            if 'url' in info:
-                download_link = info['url']
-            elif 'formats' in info:
-                for format_entry in info['formats']:
-                    if 'url' in format_entry and format_entry.get('ext') == 'mp4':
-                        download_link = format_entry['url']
-                        break
-            
-            if not download_link:
-                raise HTTPException(status_code=400, detail="Could not find direct download link.")
+    if use_cookies:
+        base_opts["cookiefile"] = str(cookies_path)
 
-            return {"download_url": download_link}
+    try:
+        # Extract formats and pick a single progressive format (no download)
+        with yt_dlp.YoutubeDL(base_opts) as ydl_info:
+            info = ydl_info.extract_info(url, download=False)
+            # If it's a playlist despite noplaylist, pick the first entry
+            if info.get("_type") == "playlist" and info.get("entries"):
+                info = info["entries"][0]
+
+            formats = info.get("formats") or []
+            progressive = []
+            for f in formats:
+                if f.get("acodec") == "none" or f.get("vcodec") == "none":
+                    continue
+                protocol = f.get("protocol") or ""
+                if protocol.startswith("m3u8") or protocol == "http_dash_segments":
+                    # Skip HLS/DASH segmented formats (would need ffmpeg)
+                    continue
+                progressive.append(f)
+
+            if not progressive:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "No progressive format available without ffmpeg. "
+                        "Install ffmpeg or try a different/low quality link."
+                    ),
+                )
+
+            # Sort by quality: prefer mp4, highest height up to 720, then tbr
+            def quality_key(f: dict):
+                height = f.get("height") or 0
+                ext = f.get("ext") or ""
+                tbr = f.get("tbr") or 0
+                mp4_pref = 1 if ext == "mp4" else 0
+                # Cap preference at 720 to avoid giant files and browser issues
+                capped_height = min(height, 720)
+                return (mp4_pref, capped_height, tbr)
+
+            progressive.sort(key=quality_key, reverse=True)
+            chosen = progressive[0]
+
+            # Download exactly the chosen progressive format to our downloads folder
+            ydl_opts = dict(base_opts)
+            ydl_opts["format"] = str(chosen.get("format_id"))
+            # Ensure no merge even if site reports separate streams
+            ydl_opts["postprocessors"] = []
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            final_path = Path(filename)
+            if not final_path.exists():
+                # Try with resolved ext
+                ext = info.get("ext") or chosen.get("ext") or "mp4"
+                alt = DOWNLOAD_DIR / f"{info.get('title','video')}.{ext}"
+                if alt.exists():
+                    final_path = alt
+
+            if not final_path.exists():
+                raise HTTPException(status_code=500, detail="Download finished but file not found.")
+
+            return {
+                "title": info.get("title"),
+                "thumbnail": info.get("thumbnail"),
+                "filename": final_path.name,
+                "download_url": f"/files/{final_path.name}",
+                "force_download_url": f"/files-download/{final_path.name}",
+                "duration": info.get("duration"),
+                "webpage_url": info.get("webpage_url"),
+            }
     except yt_dlp.utils.DownloadError as e:
-        if "unsupported URL" in str(e):
-            raise HTTPException(status_code=400, detail="Unsupported video platform or invalid URL.")
-        else:
-            raise HTTPException(status_code=500, detail=f"Failed to process video: {str(e)}")
+        message = str(e)
+        if "Unsupported URL" in message or "unsupported URL" in message:
+            raise HTTPException(status_code=400, detail="Unsupported platform or invalid URL.")
+        raise HTTPException(status_code=500, detail=f"Failed to download: {message}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+
+@app.get("/files-download/{filename}")
+async def files_download(filename: str):
+    # Force a browser download with Content-Disposition
+    safe_path = (DOWNLOAD_DIR / filename).resolve()
+    if not str(safe_path).startswith(str(DOWNLOAD_DIR.resolve())):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    if not safe_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(
+        path=str(safe_path),
+        media_type="application/octet-stream",
+        filename=filename,
+    )
