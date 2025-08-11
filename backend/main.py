@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 import uuid
 import time
+import base64
 
 app = FastAPI()
 
@@ -32,6 +33,18 @@ class VideoURL(BaseModel):
 BASE_DIR = Path(__file__).resolve().parent.parent
 DOWNLOAD_DIR = BASE_DIR / "downloads"
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# If cookies are provided via env, write them once to cookies.txt
+COOKIES_B64 = os.getenv("COOKIES_B64", "").strip()
+if COOKIES_B64:
+    try:
+        cookies_path = BASE_DIR / "cookies.txt"
+        if not cookies_path.exists():
+            decoded = base64.b64decode(COOKIES_B64).decode("utf-8", errors="ignore")
+            cookies_path.write_text(decoded, encoding="utf-8")
+    except Exception:
+        # best-effort only; proceed without cookies
+        pass
 
 # Serve downloaded files at /files
 app.mount("/files", StaticFiles(directory=str(DOWNLOAD_DIR)), name="files")
@@ -66,7 +79,7 @@ async def download_video(video_url: VideoURL, background_tasks: BackgroundTasks)
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
 
-    # Optional cookies support (e.g., Instagram/LinkedIn private or age-gated)
+    # Optional cookies support (e.g., age-gated/region-limited)
     cookies_path = BASE_DIR / "cookies.txt"
     use_cookies = cookies_path.exists()
 
@@ -95,6 +108,17 @@ async def download_video(video_url: VideoURL, background_tasks: BackgroundTasks)
 
     try:
         # Extract formats and pick a single progressive format (no download)
+        # Add resiliency and optional proxy
+        proxy_url = os.getenv("PROXY_URL")
+        base_opts.update({
+            "retries": 3,
+            "socket_timeout": 20,
+            # Prefer mobile player client to reduce rate-limiting in some cases
+            "extractor_args": {"youtube": {"player_client": ["android"]}},
+        })
+        if proxy_url:
+            base_opts["proxy"] = proxy_url
+
         with yt_dlp.YoutubeDL(base_opts) as ydl_info:
             info = ydl_info.extract_info(url, download=False)
             # If it's a playlist despite noplaylist, pick the first entry
