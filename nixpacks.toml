@@ -3,24 +3,18 @@ providers = ["python", "node"]
 [variables]
 PYTHON_VERSION = "3.11"
 NODE_VERSION = "20"
-[phases.install-backend]
-base_directory = "backend"
+
+[phases.install]
 cmds = [
-  "pip install -r requirements.txt"
+  "pip install -r backend/requirements.txt",
+  "npm --prefix frontend ci"
 ]
 
-[phases.install-frontend]
-base_directory = "frontend"
+[phases.build]
 cmds = [
-  "npm ci"
-]
-
-[phases.build-frontend]
-base_directory = "frontend"
-cmds = [
-  "npm run build"
+  "npm --prefix frontend run build"
 ]
 
 [start]
-cmd = "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+cmd = "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
 
