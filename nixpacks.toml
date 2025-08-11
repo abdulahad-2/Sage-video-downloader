@@ -4,6 +4,17 @@ providers = ["python", "node"]
 PYTHON_VERSION = "3.11"
 NODE_VERSION = "20"
 
+[phases.setup]
+aptPkgs = [
+  "python3-pip"
+]
+cmds = [
+  "apt-get update && apt-get install -y python3-pip",
+  "ln -sf $(command -v pip3) /usr/local/bin/pip || true",
+  "python3 -m ensurepip --upgrade || true",
+  "python3 -m pip install --upgrade pip setuptools wheel || true"
+]
+
 [phases.install]
 cmds = [
   "python3 -m pip install -r backend/requirements.txt",
