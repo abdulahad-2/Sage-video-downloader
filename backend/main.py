@@ -6,6 +6,7 @@ import yt_dlp
 import os
 from pathlib import Path
 from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
@@ -39,7 +40,7 @@ async def healthz():
     return {"status": "ok"}
 
 
-@app.post("/download")
+@app.post("/download", response_class=JSONResponse)
 async def download_video(video_url: VideoURL):
     url = video_url.url.strip()
     if not url:
