@@ -779,7 +779,7 @@ export default function Home() {
                 fontWeight: '600', 
                 margin: '0'
               }}>
-                💼 Need a custom project? <span style={{ color: '#60a5fa' }}>Let's work together!</span>
+                💼 Need a custom project? <span style={{ color: '#60a5fa' }}>Let&apos;s work together!</span>
               </p>
             </div>
 

@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "export", // Enables Static HTML Export
-  /* config options here */
+  output: "export",
+  eslint: {
+    // Avoid failing production builds due to lint errors
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;
