@@ -1,0 +1,42 @@
+[[phases]]
+name = "install backend dependencies"
+# This phase runs from the backend directory
+base_directory = "backend"
+# Install Python dependencies
+cmds = ["pip install -r requirements.txt"]
+
+[[phases]]
+name = "install frontend dependencies"
+# This phase runs from the frontend directory
+base_directory = "frontend"
+# Install Node.js dependencies
+cmds = ["npm install"]
+
+[[phases]]
+name = "build frontend"
+# This phase runs from the frontend directory
+base_directory = "frontend"
+# Build the Next.js application
+cmds = ["npm run build"]
+
+# Define a build for the backend service
+[[build]]
+name = "backend"
+base_directory = "backend"
+# No explicit build command needed for Python apps usually, dependencies are installed in a phase
+# start_command = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+
+# Define a build for the frontend service
+[[build]]
+name = "frontend"
+base_directory = "frontend"
+# No explicit start command needed for Next.js, it's usually `npm start` or handled by the platform
+
+# Define how to start each service
+[[start]]
+name = "backend"
+cmd = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+
+[[start]]
+name = "frontend"
+cmd = "npm start"
