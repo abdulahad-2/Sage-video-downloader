@@ -165,3 +165,9 @@ async def files_download(filename: str):
         media_type="application/octet-stream",
         filename=filename,
     )
+
+# Serve the built Next.js static site from frontend/out at the root path
+# This should be defined after API routes so API endpoints keep precedence
+FRONTEND_BUILD_DIR = BASE_DIR / "frontend" / "out"
+if FRONTEND_BUILD_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_BUILD_DIR), html=True), name="frontend")

@@ -1,0 +1,21 @@
+[phases.install-backend]
+base_directory = "backend"
+cmds = [
+  "pip install -r requirements.txt"
+]
+
+[phases.install-frontend]
+base_directory = "frontend"
+cmds = [
+  "npm ci"
+]
+
+[phases.build-frontend]
+base_directory = "frontend"
+cmds = [
+  "npm run build"
+]
+
+[start]
+cmd = "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+
