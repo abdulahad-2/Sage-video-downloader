@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 import uuid
 import time
 import base64
+import shutil
 
 app = FastAPI()
 
@@ -97,8 +98,6 @@ async def download_video(video_url: VideoURL, background_tasks: BackgroundTasks)
             ),
             "Accept-Language": "en-US,en;q=0.9",
         },
-        # Ensure no postprocessing/merging is attempted without ffmpeg
-        "postprocessors": [],
         # Do not read user/global yt-dlp config files that may set merging formats
         "ignoreconfig": True,
     }
@@ -113,8 +112,6 @@ async def download_video(video_url: VideoURL, background_tasks: BackgroundTasks)
         base_opts.update({
             "retries": 3,
             "socket_timeout": 20,
-            # Prefer mobile player client to reduce rate-limiting in some cases
-            "extractor_args": {"youtube": {"player_client": ["android"]}},
         })
         if proxy_url:
             base_opts["proxy"] = proxy_url
@@ -126,43 +123,48 @@ async def download_video(video_url: VideoURL, background_tasks: BackgroundTasks)
                 info = info["entries"][0]
 
             formats = info.get("formats") or []
-            progressive = []
-            for f in formats:
-                if f.get("acodec") == "none" or f.get("vcodec") == "none":
-                    continue
-                protocol = f.get("protocol") or ""
-                if protocol.startswith("m3u8") or protocol == "http_dash_segments":
-                    # Skip HLS/DASH segmented formats (would need ffmpeg)
-                    continue
-                progressive.append(f)
+            ffmpeg_available = shutil.which("ffmpeg") is not None
+            chosen = None
+            if not ffmpeg_available:
+                # Without ffmpeg, require a progressive container
+                progressive: list[dict] = []
+                for f in formats:
+                    if f.get("acodec") == "none" or f.get("vcodec") == "none":
+                        continue
+                    protocol = f.get("protocol") or ""
+                    if protocol.startswith("m3u8") or protocol == "http_dash_segments":
+                        continue
+                    progressive.append(f)
 
-            if not progressive:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        "No progressive format available without ffmpeg. "
-                        "Install ffmpeg or try a different/low quality link."
-                    ),
-                )
+                if not progressive:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "No direct file format available. Please try a different link."
+                        ),
+                    )
 
-            # Sort by quality: prefer mp4, highest height up to 720, then tbr
-            def quality_key(f: dict):
-                height = f.get("height") or 0
-                ext = f.get("ext") or ""
-                tbr = f.get("tbr") or 0
-                mp4_pref = 1 if ext == "mp4" else 0
-                # Cap preference at 720 to avoid giant files and browser issues
-                capped_height = min(height, 720)
-                return (mp4_pref, capped_height, tbr)
+                def quality_key(f: dict):
+                    height = f.get("height") or 0
+                    ext = f.get("ext") or ""
+                    tbr = f.get("tbr") or 0
+                    mp4_pref = 1 if ext == "mp4" else 0
+                    capped_height = min(height, 720)
+                    return (mp4_pref, capped_height, tbr)
 
-            progressive.sort(key=quality_key, reverse=True)
-            chosen = progressive[0]
+                progressive.sort(key=quality_key, reverse=True)
+                chosen = progressive[0]
 
             # Download exactly the chosen progressive format to our downloads folder
             ydl_opts = dict(base_opts)
-            ydl_opts["format"] = str(chosen.get("format_id"))
-            # Ensure no merge even if site reports separate streams
-            ydl_opts["postprocessors"] = []
+            # Light rate-limiting to reduce 429s
+            ydl_opts["sleep_interval_requests"] = 1.0
+            if shutil.which("ffmpeg") is not None:
+                # Allow best video+audio and merge to mp4 when ffmpeg is available
+                ydl_opts["format"] = "bv*+ba/b"
+                ydl_opts["merge_output_format"] = "mp4"
+            else:
+                ydl_opts["format"] = str(chosen.get("format_id"))
             # Use a randomized, non-identifying filename to avoid leaking video identity
             random_name_template = f"{uuid.uuid4().hex}.%(ext)s"
             ydl_opts["outtmpl"] = str(DOWNLOAD_DIR / random_name_template)
