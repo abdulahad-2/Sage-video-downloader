@@ -10,10 +10,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const API_BASE = useMemo(() => {
-    if (typeof window !== 'undefined') {
-      return `${window.location.protocol}//${window.location.hostname}:8001`;
-    }
-    return 'http://localhost:8001';
+    if (process.env.NEXT_PUBLIC_API_BASE) return process.env.NEXT_PUBLIC_API_BASE;
+    if (typeof window !== 'undefined') return window.location.origin;
+    return '';
   }, []);
 
   const handleDownload = async () => {
@@ -22,7 +21,8 @@ export default function Home() {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/download`, {
+      const endpoint = API_BASE ? `${API_BASE}/download` : '/download';
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -37,9 +37,9 @@ export default function Home() {
 
       const data = await response.json();
       const bestUrl = data.force_download_url
-        ? new URL(data.force_download_url, API_BASE).href
+        ? (API_BASE ? new URL(data.force_download_url, API_BASE).href : data.force_download_url)
         : (data.download_url
-            ? new URL(data.download_url, API_BASE).href
+            ? (API_BASE ? new URL(data.download_url, API_BASE).href : data.download_url)
             : null);
       setDownloadUrl(bestUrl);
     } catch (err: unknown) {
@@ -67,13 +67,27 @@ export default function Home() {
         
         * {
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        
+        body, html {
+          margin: 0;
+          padding: 0;
+          overflow-x: hidden;
         }
         
         .main-container {
-          min-height: 100vh;
-          background: linear-gradient(135deg, #0f0f23 0%, #1a0b2e 25%, #16213e 50%, #0f3460 75%, #0d1b2a 100%);
           position: relative;
+          min-height: 100vh;
+          width: 100%;
+          background: linear-gradient(135deg, #0f0f23 0%, #1a0b2e 25%, #16213e 50%, #0f3460 75%, #0d1b2a 100%);
           overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1rem;
         }
         
         .floating-orb {
@@ -81,6 +95,7 @@ export default function Home() {
           border-radius: 50%;
           filter: blur(80px);
           animation: float 8s ease-in-out infinite;
+          pointer-events: none;
         }
         
         .orb-1 {
@@ -182,10 +197,18 @@ export default function Home() {
           75%, 100% { transform: scale(2.5); opacity: 0; }
         }
         
+        .content-wrapper {
+          width: 100%;
+          max-width: 500px;
+          margin: 0 auto;
+          position: relative;
+          z-index: 10;
+        }
+        
         .logo-container {
           position: relative;
           display: inline-block;
-          margin-bottom: 2.5rem;
+          margin-bottom: 2rem;
         }
         
         .logo-glow {
@@ -203,8 +226,8 @@ export default function Home() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 90px;
-          height: 90px;
+          width: 80px;
+          height: 80px;
           background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #3b82f6 100%);
           border-radius: 50%;
           box-shadow: 0 25px 50px rgba(59, 130, 246, 0.3);
@@ -217,7 +240,7 @@ export default function Home() {
         
         .title {
           font-family: 'Space Grotesk', sans-serif;
-          font-size: clamp(2.5rem, 5vw, 3.5rem);
+          font-size: 2.5rem;
           font-weight: 800;
           margin-bottom: 1rem;
           position: relative;
@@ -256,8 +279,10 @@ export default function Home() {
           backdrop-filter: blur(25px);
           border: 1px solid rgba(255, 255, 255, 0.2);
           border-radius: 2rem;
-          padding: 3rem;
+          padding: 1.5rem;
           box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+          width: 100%;
+          margin: 0 auto;
         }
         
         .card-glow {
@@ -269,16 +294,24 @@ export default function Home() {
           z-index: -1;
         }
         
+        .platform-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 1rem;
+          margin-bottom: 2rem;
+          justify-items: center;
+        }
+        
         .platform-icon {
           position: relative;
-          width: 70px;
-          height: 70px;
+          width: 60px;
+          height: 60px;
           background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
-          border-radius: 1.5rem;
+          border-radius: 1rem;
           display: flex;
           align-items: center;
           justify-content: center;
-          margin-bottom: 1rem;
+          margin-bottom: 0.5rem;
           border: 1px solid rgba(255, 255, 255, 0.2);
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
           transition: all 0.3s ease;
@@ -286,7 +319,7 @@ export default function Home() {
         }
         
         .platform-icon:hover {
-          transform: translateY(-5px) scale(1.1);
+          transform: translateY(-3px) scale(1.05);
           background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.1) 100%);
           box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
         }
@@ -296,7 +329,7 @@ export default function Home() {
           position: absolute;
           inset: 0;
           background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(147, 51, 234, 0.3) 100%);
-          border-radius: 1.5rem;
+          border-radius: 1rem;
           filter: blur(8px);
           opacity: 0;
           transition: opacity 0.3s ease;
@@ -309,14 +342,14 @@ export default function Home() {
         
         .input-container {
           position: relative;
-          margin-bottom: 2rem;
+          margin-bottom: 1.5rem;
         }
         
         .input-glow {
           position: absolute;
           inset: 0;
           background: linear-gradient(90deg, rgba(59, 130, 246, 0.3) 0%, rgba(147, 51, 234, 0.3) 100%);
-          border-radius: 1.5rem;
+          border-radius: 1rem;
           filter: blur(10px);
           opacity: 0;
           transition: opacity 0.3s ease;
@@ -329,12 +362,12 @@ export default function Home() {
         .video-input {
           position: relative;
           width: 100%;
-          padding: 1.5rem 2rem;
+          padding: 1rem 1.25rem;
           background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
           border: 1px solid rgba(255, 255, 255, 0.3);
-          border-radius: 1.5rem;
+          border-radius: 1rem;
           color: white;
-          font-size: 1.1rem;
+          font-size: 1rem;
           font-weight: 500;
           backdrop-filter: blur(20px);
           box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.2);
@@ -354,13 +387,13 @@ export default function Home() {
         .download-btn {
           position: relative;
           width: 100%;
-          padding: 1.5rem 2rem;
+          padding: 1rem 1.5rem;
           background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #3b82f6 100%);
           background-size: 200% 200%;
           border: none;
-          border-radius: 1.5rem;
+          border-radius: 1rem;
           color: white;
-          font-size: 1.2rem;
+          font-size: 1rem;
           font-weight: 700;
           font-family: 'Space Grotesk', sans-serif;
           cursor: pointer;
@@ -385,7 +418,7 @@ export default function Home() {
           position: absolute;
           inset: 0;
           background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.05) 100%);
-          border-radius: 1.5rem;
+          border-radius: 1rem;
           opacity: 0;
           transition: opacity 0.3s ease;
         }
@@ -395,21 +428,21 @@ export default function Home() {
         }
         
         .success-card {
-          margin-top: 2rem;
-          padding: 2rem;
+          margin-top: 1.5rem;
+          padding: 1.5rem;
           background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(16, 185, 129, 0.15) 50%, rgba(34, 197, 94, 0.25) 100%);
           border: 1px solid rgba(34, 197, 94, 0.4);
-          border-radius: 1.5rem;
+          border-radius: 1rem;
           backdrop-filter: blur(20px);
           box-shadow: 0 15px 35px rgba(34, 197, 94, 0.2);
         }
         
         .error-card {
-          margin-top: 2rem;
-          padding: 2rem;
+          margin-top: 1.5rem;
+          padding: 1.5rem;
           background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(244, 63, 94, 0.15) 50%, rgba(239, 68, 68, 0.25) 100%);
           border: 1px solid rgba(239, 68, 68, 0.4);
-          border-radius: 1.5rem;
+          border-radius: 1rem;
           backdrop-filter: blur(20px);
           box-shadow: 0 15px 35px rgba(239, 68, 68, 0.2);
         }
@@ -444,7 +477,7 @@ export default function Home() {
           text-decoration: none;
           transition: all 0.3s ease;
           padding: 0.75rem;
-          border-radius: 1rem;
+          border-radius: 0.5rem;
           background: rgba(59, 130, 246, 0.1);
         }
         
@@ -454,36 +487,21 @@ export default function Home() {
           transform: translateX(5px);
         }
         
-        .api-info {
+        .footer-section {
           margin-top: 2rem;
-          padding-top: 2rem;
-          border-top: 1px solid rgba(255, 255, 255, 0.2);
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          font-size: 0.9rem;
-        }
-        
-        .api-code {
-          background: rgba(255, 255, 255, 0.1);
-          padding: 0.5rem 1rem;
-          border-radius: 0.75rem;
-          font-family: 'JetBrains Mono', 'Fira Code', monospace;
-          color: #93c5fd;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(10px);
+          text-align: center;
         }
         
         .footer-badge {
           display: inline-flex;
           align-items: center;
           gap: 0.75rem;
-          padding: 1rem 1.5rem;
+          padding: 0.75rem 1.25rem;
           background: rgba(255, 255, 255, 0.08);
-          border-radius: 2rem;
+          border-radius: 1.5rem;
           backdrop-filter: blur(20px);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          margin-top: 2rem;
+          margin-bottom: 1.5rem;
         }
         
         .pulse-dots {
@@ -518,15 +536,105 @@ export default function Home() {
           50% { opacity: 1; transform: scale(1.2); }
         }
         
+        .social-links {
+          display: flex;
+          justify-content: center;
+          gap: 1rem;
+          margin-bottom: 1rem;
+        }
+        
+        .social-link {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 45px;
+          height: 45px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 0.75rem;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          color: #9ca3af;
+          transition: all 0.3s ease;
+          backdrop-filter: blur(10px);
+          text-decoration: none;
+        }
+        
+        .social-link:hover {
+          transform: translateY(-3px) scale(1.05);
+          color: #ffffff;
+          background: rgba(255, 255, 255, 0.2);
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        
         /* Responsive */
         @media (max-width: 768px) {
+          .main-container {
+            padding: 0.75rem;
+          }
+          
+          .content-wrapper {
+            max-width: 100%;
+          }
+          
           .main-card {
-            padding: 2rem;
+            padding: 1.25rem;
+          }
+          
+          .title {
+            font-size: 2rem;
+          }
+          
+          .platform-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+          }
+          
+          .platform-icon {
+            width: 55px;
+            height: 55px;
           }
           
           .orb-1, .orb-2, .orb-3 {
             width: 200px;
             height: 200px;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .main-container {
+            padding: 0.5rem;
+          }
+          
+          .main-card {
+            padding: 1rem;
+          }
+          
+          .title {
+            font-size: 1.75rem;
+          }
+          
+          .platform-icon {
+            width: 50px;
+            height: 50px;
+          }
+          
+          .video-input {
+            padding: 0.875rem 1rem;
+            font-size: 0.9rem;
+          }
+          
+          .download-btn {
+            padding: 0.875rem 1.25rem;
+            font-size: 0.95rem;
+          }
+          
+          .logo {
+            width: 70px;
+            height: 70px;
           }
         }
       `}</style>
@@ -544,142 +652,204 @@ export default function Home() {
         <div className="particle particle-4"></div>
         <div className="particle particle-5"></div>
 
-        <div className="flex items-center justify-center min-h-screen p-4 relative z-10">
-          <div className="w-full max-w-md mx-auto">
-            {/* Header */}
-            <div className="text-center mb-10">
-              <div className="logo-container">
-                <div className="logo-glow"></div>
-                <div className="logo">
-                  <Download size={40} color="white" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} />
-                </div>
+        <div className="content-wrapper">
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div className="logo-container">
+              <div className="logo-glow"></div>
+              <div className="logo">
+                <Download size={35} color="white" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} />
               </div>
-              <h1 className="title">
-                <span className="title-gradient">Video Downloader</span>
-                <div className="title-shadow"></div>
-              </h1>
-              <p style={{ color: '#d1d5db', fontSize: '1.1rem', fontWeight: '500', letterSpacing: '0.5px' }}>
-                Download from <span style={{ color: '#60a5fa', fontWeight: '700' }}>multiple platforms</span> instantly
+            </div>
+            <h1 className="title">
+              <span className="title-gradient">Video Downloader</span>
+              <div className="title-shadow"></div>
+            </h1>
+            <p style={{ color: '#d1d5db', fontSize: '1rem', fontWeight: '500', letterSpacing: '0.5px' }}>
+              Download from <span style={{ color: '#60a5fa', fontWeight: '700' }}>multiple platforms</span> instantly
+            </p>
+          </div>
+
+          {/* Main Card */}
+          <div className="main-card">
+            <div className="card-glow"></div>
+            
+            {/* Platform Icons */}
+            <div className="platform-grid">
+              {platforms.map((platform, index) => (
+                <div key={index} style={{ textAlign: 'center' }}>
+                  <div className="platform-icon">
+                    <platform.icon size={24} className={platform.color} style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }} />
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: '#d1d5db', fontWeight: '600', letterSpacing: '0.5px' }}>
+                    {platform.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Input Section */}
+            <div>
+              <div className="input-container">
+                <div className="input-glow"></div>
+                <input
+                  type="text"
+                  className="video-input"
+                  placeholder="✨ Paste your video link here..."
+                  value={videoLink}
+                  onChange={(e) => setVideoLink(e.target.value)}
+                />
+              </div>
+
+              <button
+                onClick={handleDownload}
+                disabled={loading || !videoLink}
+                className="download-btn"
+              >
+                <div className="btn-glow"></div>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+                  {loading ? (
+                    <>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25"></circle>
+                        <path fill="currentColor" opacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Processing Magic...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={20} />
+                      <span>Download Video</span>
+                    </>
+                  )}
+                </div>
+              </button>
+            </div>
+
+            {/* Download Result */}
+            {downloadUrl && (
+              <div className="success-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                  <div style={{ position: 'relative' }}>
+                    <div className="status-indicator success"></div>
+                    <div style={{ position: 'absolute', inset: '0', width: '18px', height: '18px', background: '#22c55e', borderRadius: '50%', animation: 'ping-particle 2s infinite', opacity: '0.6' }}></div>
+                  </div>
+                  <p style={{ color: '#86efac', fontWeight: '700', fontSize: '1.1rem' }}>✨ Ready to download!</p>
+                </div>
+                <a
+                  href={downloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="download-link"
+                >
+                  <div style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.2)', borderRadius: '0.5rem' }}>
+                    <Download size={18} />
+                  </div>
+                  <span>Click here to download your video</span>
+                </a>
+              </div>
+            )}
+
+            {/* Error Display */}
+            {error && (
+              <div className="error-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="status-indicator error"></div>
+                  <p style={{ color: '#fca5a5', fontWeight: '700', fontSize: '1.1rem' }}>❌ Something went wrong</p>
+                </div>
+                <p style={{ color: '#fecaca', fontSize: '0.95rem', lineHeight: '1.6' }}>{error}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="footer-section">
+            {/* Project Contact Message */}
+            <div style={{ 
+              marginBottom: '1.5rem', 
+              padding: '0.75rem 1.5rem', 
+              background: 'rgba(59, 130, 246, 0.1)', 
+              borderRadius: '0.75rem', 
+              border: '1px solid rgba(59, 130, 246, 0.2)',
+              backdropFilter: 'blur(10px)'
+            }}>
+              <p style={{ 
+                color: '#93c5fd', 
+                fontSize: '0.9rem', 
+                fontWeight: '600', 
+                margin: '0'
+              }}>
+                💼 Need a custom project? <span style={{ color: '#60a5fa' }}>Let's work together!</span>
               </p>
             </div>
 
-            {/* Main Card */}
-            <div className="main-card">
-              <div className="card-glow"></div>
-              
-              {/* Platform Icons */}
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginBottom: '3rem' }}>
-                {platforms.map((platform, index) => (
-                  <div key={index} style={{ textAlign: 'center' }}>
-                    <div className="platform-icon">
-                      <platform.icon size={32} className={platform.color} style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }} />
-                    </div>
-                    <span style={{ fontSize: '0.8rem', color: '#d1d5db', fontWeight: '600', letterSpacing: '0.5px' }}>
-                      {platform.name}
-                    </span>
-                  </div>
-                ))}
+            <div className="footer-badge">
+              <div className="pulse-dots">
+                <div className="pulse-dot"></div>
+                <div className="pulse-dot"></div>
+                <div className="pulse-dot"></div>
               </div>
-
-              {/* Input Section */}
-              <div style={{ marginBottom: '2rem' }}>
-                <div className="input-container">
-                  <div className="input-glow"></div>
-                  <input
-                    type="text"
-                    className="video-input"
-                    placeholder="✨ Paste your video link here..."
-                    value={videoLink}
-                    onChange={(e) => setVideoLink(e.target.value)}
-                  />
-                </div>
-
-                <button
-                  onClick={handleDownload}
-                  disabled={loading || !videoLink}
-                  className="download-btn"
-                >
-                  <div className="btn-glow"></div>
-                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
-                    {loading ? (
-                      <>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25"></circle>
-                          <path fill="currentColor" opacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span>Processing Magic...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download size={24} />
-                        <span>Download Video</span>
-                      </>
-                    )}
-                  </div>
-                </button>
-              </div>
-
-              {/* Download Result */}
-              {downloadUrl && (
-                <div className="success-card">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                    <div style={{ position: 'relative' }}>
-                      <div className="status-indicator success"></div>
-                      <div style={{ position: 'absolute', inset: '0', width: '18px', height: '18px', background: '#22c55e', borderRadius: '50%', animation: 'ping-particle 2s infinite', opacity: '0.6' }}></div>
-                    </div>
-                    <p style={{ color: '#86efac', fontWeight: '700', fontSize: '1.2rem' }}>✨ Ready to download!</p>
-                  </div>
-                  <a
-                    href={downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="download-link"
-                  >
-                    <div style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.2)', borderRadius: '0.75rem' }}>
-                      <Download size={20} />
-                    </div>
-                    <span>Click here to download your video</span>
-                  </a>
-                </div>
-              )}
-
-              {/* Error Display */}
-              {error && (
-                <div className="error-card">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                    <div className="status-indicator error"></div>
-                    <p style={{ color: '#fca5a5', fontWeight: '700', fontSize: '1.2rem' }}>❌ Something went wrong</p>
-                  </div>
-                  <p style={{ color: '#fecaca', fontSize: '1rem', lineHeight: '1.6' }}>{error}</p>
-                </div>
-              )}
-
-              {/* API Info */}
-              <div className="api-info">
-                <span style={{ color: '#9ca3af', fontWeight: '500' }}>API Endpoint</span>
-                <code className="api-code">
-                  {API_BASE}
-                </code>
-              </div>
+              <p style={{ color: '#d1d5db', fontSize: '0.85rem', fontWeight: '500', margin: 0 }}>
+                Supports YouTube, Instagram, Facebook, TikTok & more
+              </p>
             </div>
 
-            {/* Footer */}
-            <div style={{ textAlign: 'center' }}>
-              <div className="footer-badge">
-                <div className="pulse-dots">
-                  <div className="pulse-dot"></div>
-                  <div className="pulse-dot"></div>
-                  <div className="pulse-dot"></div>
-                </div>
-                <p style={{ color: '#d1d5db', fontSize: '0.95rem', fontWeight: '500' }}>
-                  Supports YouTube, Instagram, Facebook, TikTok & more
-                </p>
-              </div>
+            {/* Social Links */}
+            <div className="social-links">
+              <a
+                href="https://github.com/abdulahad-2/Sage-video-downloader"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="social-link"
+                title="GitHub"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
+                </svg>
+              </a>
+
+              <a
+                href="https://www.linkedin.com/in/abdul-ahad-7908a82b4/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="social-link"
+                title="LinkedIn"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                </svg>
+              </a>
+
+              <a
+                href="mailto:abdul.ahadt732@gmail.com"
+                className="social-link"
+                title="Email"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" />
+                  <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" />
+                </svg>
+              </a>
+
+              <a
+                href="https://www.instagram.com/abdul_ahadt/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="social-link"
+                title="Instagram"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                </svg>
+              </a>
+            </div>
+
+            {/* Creator Credit */}
+            <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: '500' }}>
+              <p>Built with ❤️ by <span style={{ color: '#60a5fa', fontWeight: '600' }}>Abdul Ahad</span></p>
             </div>
           </div>
         </div>
-
-        
       </div>
     </>
   );
