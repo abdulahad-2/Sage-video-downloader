@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
+import uuid
+import time
 
 app = FastAPI()
 
@@ -40,8 +42,26 @@ async def healthz():
     return {"status": "ok"}
 
 
+def _delete_file_after(path_str: str) -> None:
+    try:
+        p = Path(path_str)
+        if p.exists():
+            p.unlink()
+    except Exception:
+        # best-effort only
+        pass
+
+
+def _delayed_delete(path_str: str, delay_seconds: int = 1800) -> None:
+    try:
+        time.sleep(max(0, delay_seconds))
+        _delete_file_after(path_str)
+    except Exception:
+        pass
+
+
 @app.post("/download", response_class=JSONResponse)
-async def download_video(video_url: VideoURL):
+async def download_video(video_url: VideoURL, background_tasks: BackgroundTasks):
     url = video_url.url.strip()
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
@@ -119,6 +139,9 @@ async def download_video(video_url: VideoURL):
             ydl_opts["format"] = str(chosen.get("format_id"))
             # Ensure no merge even if site reports separate streams
             ydl_opts["postprocessors"] = []
+            # Use a randomized, non-identifying filename to avoid leaking video identity
+            random_name_template = f"{uuid.uuid4().hex}.%(ext)s"
+            ydl_opts["outtmpl"] = str(DOWNLOAD_DIR / random_name_template)
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -135,35 +158,46 @@ async def download_video(video_url: VideoURL):
                 raise HTTPException(status_code=500, detail="Download finished but file not found.")
 
             return {
-                "title": info.get("title"),
-                "thumbnail": info.get("thumbnail"),
-                "filename": final_path.name,
+                # Keep response minimal to avoid storing/echoing video identity server-side
                 "download_url": f"/files/{final_path.name}",
                 "force_download_url": f"/files-download/{final_path.name}",
-                "duration": info.get("duration"),
-                "webpage_url": info.get("webpage_url"),
             }
     except yt_dlp.utils.DownloadError as e:
         message = str(e)
         if "Unsupported URL" in message or "unsupported URL" in message:
             raise HTTPException(status_code=400, detail="Unsupported platform or invalid URL.")
-        raise HTTPException(status_code=500, detail=f"Failed to download: {message}")
+        # Do not echo potentially identifying error details back to the client
+        raise HTTPException(status_code=500, detail="Failed to process the link. Please try another.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 
+def _delete_file_after(path_str: str) -> None:
+    try:
+        p = Path(path_str)
+        if p.exists():
+            p.unlink()
+    except Exception:
+        # Swallow errors; deletion is best-effort
+        pass
+
+
 @app.get("/files-download/{filename}")
-async def files_download(filename: str):
+async def files_download(filename: str, background_tasks: BackgroundTasks):
     # Force a browser download with Content-Disposition
     safe_path = (DOWNLOAD_DIR / filename).resolve()
     if not str(safe_path).startswith(str(DOWNLOAD_DIR.resolve())):
         raise HTTPException(status_code=400, detail="Invalid filename")
     if not safe_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
+    # Schedule deletion after the response is fully sent
+    background_tasks.add_task(_delete_file_after, str(safe_path))
     return FileResponse(
         path=str(safe_path),
         media_type="application/octet-stream",
         filename=filename,
+        headers={"Cache-Control": "no-store"},
+        background=background_tasks,
     )
 
 # Serve the built Next.js static site from frontend/out at the root path
