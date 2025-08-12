@@ -177,12 +177,17 @@ async def download_video(video_url: VideoURL, background_tasks: BackgroundTasks)
                 "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     )
 
-    outtmpl = str(DOWNLOAD_DIR / "%(title)s.%(ext)s")
+    # Limit filename length to avoid Windows MAX_PATH and excessive titles
+    default_limit = 100 if os.name == "nt" else 180
+    title_limit = int(os.getenv("OUTPUT_TITLE_LIMIT", str(default_limit)))
+    # Use byte-length limiter (.%dB) so multibyte chars are accounted for
+    outtmpl = str(DOWNLOAD_DIR / f"%(title).{title_limit}B.%(ext)s")
     cmd: list[str] = [
         "yt-dlp",
         url,
         "--no-playlist",
         "--restrict-filenames",
+        "--windows-filenames",
         "--newline",
         "--print-json",
         "-o",
