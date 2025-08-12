@@ -33,6 +33,10 @@ COPY README.md ./README.md
 # Copy static export from frontend to be served by FastAPI at /
 COPY --from=frontend /app/frontend/out ./frontend/out
 
+# Copy simple templates/static for the fallback UI
+COPY templates ./templates
+COPY static ./static
+
 ENV PORT=8000
 EXPOSE 8000
 

@@ -6,3 +6,8 @@ services:
     autoDeploy: true
     dockerfilePath: Dockerfile
     healthCheckPath: /healthz
+    envVars:
+      - key: COOKIES_B64
+        sync: false
+      - key: PROXY_URL
+        sync: false

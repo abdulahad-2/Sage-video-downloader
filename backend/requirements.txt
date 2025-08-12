@@ -4,3 +4,4 @@ yt-dlp
 python-multipart==0.0.7
 aiofiles==24.1.0
 requests>=2.31.0
+jinja2>=3.1.0
