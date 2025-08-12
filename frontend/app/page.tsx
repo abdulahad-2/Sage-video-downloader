@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Download, Video, Instagram, Facebook } from 'lucide-react';
 
 export default function Home() {
@@ -42,6 +42,20 @@ export default function Home() {
             ? (API_BASE ? new URL(data.download_url, API_BASE).href : data.download_url)
             : null);
       setDownloadUrl(bestUrl);
+      // Try to immediately trigger a download without opening a new tab
+      if (bestUrl) {
+        try {
+          const a = document.createElement('a');
+          a.href = bestUrl;
+          a.download = '';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } catch (_) {
+          // ignore; user can click the link manually
+        }
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
@@ -738,8 +752,7 @@ export default function Home() {
                 </div>
                 <a
                   href={downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  download
                   className="download-link"
                 >
                   <div style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.2)', borderRadius: '0.5rem' }}>
