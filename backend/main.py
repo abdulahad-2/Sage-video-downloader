@@ -197,17 +197,6 @@ async def download_video(video_url: VideoURL, background_tasks: BackgroundTasks)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
-
-def _delete_file_after(path_str: str) -> None:
-    try:
-        p = Path(path_str)
-        if p.exists():
-            p.unlink()
-    except Exception:
-        # Swallow errors; deletion is best-effort
-        pass
-
-
 @app.get("/files-download/{filename}")
 async def files_download(filename: str, background_tasks: BackgroundTasks):
     # Force a browser download with Content-Disposition
@@ -216,8 +205,8 @@ async def files_download(filename: str, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail="Invalid filename")
     if not safe_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    # Schedule deletion after the response is fully sent
-    background_tasks.add_task(_delete_file_after, str(safe_path))
+    # Schedule deletion with a delay to support download managers / retries
+    background_tasks.add_task(_delayed_delete, str(safe_path), 900)
     return FileResponse(
         path=str(safe_path),
         media_type="application/octet-stream",
