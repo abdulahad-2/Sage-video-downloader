@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+# Ignore all downloaded videos
+downloads/*.mp4
 
 # next.js
 /.next/

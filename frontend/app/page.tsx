@@ -68,7 +68,7 @@ export default function Home() {
   };
 
   const platforms = [
-    { name: 'YouTube', icon: Video, color: 'text-blue-400' },
+    // { name: 'YouTube', icon: Video, color: 'text-blue-400' },
     { name: 'Instagram', icon: Instagram, color: 'text-purple-400' },
     { name: 'Facebook', icon: Facebook, color: 'text-blue-500' },
     { name: 'TikTok', icon: Video, color: 'text-purple-500' }
@@ -691,7 +691,7 @@ export default function Home() {
             {/* Platform Icons */}
             <div className="platform-grid">
               {platforms.map((platform, index) => (
-                <div key={index} style={{ textAlign: 'center' }}>
+                <div key={index} style={{ textAlign: 'center' ,justifyContent: 'center',display: 'flex',flexDirection: 'column',alignItems: 'center'}}>
                   <div className="platform-icon">
                     <platform.icon size={24} className={platform.color} style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }} />
                   </div>
@@ -803,7 +803,7 @@ export default function Home() {
                 <div className="pulse-dot"></div>
               </div>
               <p style={{ color: '#d1d5db', fontSize: '0.85rem', fontWeight: '500', margin: 0 }}>
-                Supports YouTube, Instagram, Facebook, TikTok & more
+                Supports  Instagram, Facebook, TikTok & more
               </p>
             </div>
 

@@ -65,7 +65,7 @@ if COOKIES_B64:
 
 # Platform-specific cookies via env (preferred in Render)
 COOKIES_ENV_MAP = {
-    "youtube": ("COOKIES_YOUTUBE_B64", BASE_DIR / "cookies_youtube.txt"),
+    # "youtube": ("COOKIES_YOUTUBE_B64", BASE_DIR / "cookies_youtube.txt"),
     "instagram": ("COOKIES_INSTAGRAM_B64", BASE_DIR / "cookies_instagram.txt"),
     "facebook": ("COOKIES_FACEBOOK_B64", BASE_DIR / "cookies_facebook.txt"),
     "tiktok": ("COOKIES_TIKTOK_B64", BASE_DIR / "cookies_tiktok.txt"),
@@ -118,8 +118,8 @@ def _delayed_delete(path_str: str, delay_seconds: int = 1800) -> None:
 def _detect_platform(url: str) -> str | None:
     host = urlparse(url).hostname or ""
     host = host.lower()
-    if any(k in host for k in ["youtube.com", "youtu.be"]):
-        return "youtube"
+    # if any(k in host for k in ["youtube.com", "youtu.be"]):
+    #     return "youtube"
     if "instagram.com" in host:
         return "instagram"
     if any(k in host for k in ["facebook.com", "fb.watch"]):
@@ -131,7 +131,7 @@ def _detect_platform(url: str) -> str | None:
 
 def _cookie_path_for(platform: str) -> Path | None:
     mapping = {
-        "youtube": BASE_DIR / "cookies_youtube.txt",
+        # "youtube": BASE_DIR / "cookies_youtube.txt",
         "instagram": BASE_DIR / "cookies_instagram.txt",
         "facebook": BASE_DIR / "cookies_facebook.txt",
         "tiktok": BASE_DIR / "cookies_tiktok.txt",
