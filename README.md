@@ -453,7 +453,7 @@ This project is licensed under the **MIT License**. See [LICENSE](LICENSE) file 
 | 📧 **Email** | [abdul.ahadt732@gmail.com](mailto:abdul.ahadt732@gmail.com) | Professional inquiries & collaboration |
 | 📱 **Phone** | [+92 325 968 4493](tel:+923259684493) | Direct consultation & support |
 | 🐙 **GitHub** | [@abdulahad-2](https://github.com/abdulahad-2) | Source code & technical portfolio |
-| 💼 **Portfolio** | [GitHub Profile](https://github.com/abdulahad-2) | Professional work showcase |
+| 💼 **Portfolio** | [Personal Portfolio](ahad-dev.vercel.app/) | Professional work showcase |
 
 ### 🤝 **Professional Services**
 
