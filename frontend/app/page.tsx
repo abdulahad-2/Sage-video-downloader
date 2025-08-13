@@ -1,13 +1,37 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Download, Video, Instagram, Facebook } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Download, Instagram, Facebook } from 'lucide-react';
+
+function TikTokIcon({ size = 24, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M168 24c0 31.822 25.178 57.666 56.5 60v34C204.17 116.437 183.38 108.6 168 95.2V156c0 30.928-25.072 56-56 56s-56-25.072-56-56 25.072-56 56-56c7.28 0 14.222 1.372 20.6 3.875V132.5A36.5 36.5 0 00112 120c-20.158 0-36.5 16.342-36.5 36.5S91.842 193 112 193s36-15.893 36-37V24h20z"/>
+    </svg>
+  );
+}
 
 export default function Home() {
   const [videoLink, setVideoLink] = useState('');
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const jobWindowsRef = useRef<Map<string, Window | null>>(new Map());
+  type DownloadJob = {
+    id: string;
+    url: string;
+    status: 'processing' | 'success' | 'error';
+    downloadUrl?: string | null;
+    error?: string | null;
+  };
+  const [jobs, setJobs] = useState<DownloadJob[]>([]);
 
   const API_BASE = useMemo(() => {
     if (process.env.NEXT_PUBLIC_API_BASE) return process.env.NEXT_PUBLIC_API_BASE;
@@ -16,18 +40,29 @@ export default function Home() {
   }, []);
 
   const handleDownload = async () => {
-    setLoading(true);
-    setDownloadUrl(null);
+    const currentLink = videoLink.trim();
+    if (!currentLink) return;
+    // Clear the field immediately so users can paste another link
+    setVideoLink('');
     setError(null);
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setJobs((prev) => [{ id, url: currentLink, status: 'processing' }, ...prev]);
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    if (typeof window !== 'undefined' && isMobile) {
+      try {
+        const w = window.open('', '_blank');
+        jobWindowsRef.current.set(id, w);
+      } catch (_) {
+        // ignore if popup blocked
+      }
+    }
 
     try {
       const endpoint = API_BASE ? `${API_BASE}/download` : '/download';
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url: videoLink }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: currentLink }),
       });
 
       if (!response.ok) {
@@ -41,9 +76,15 @@ export default function Home() {
         : (data.download_url
             ? (API_BASE ? new URL(data.download_url, API_BASE).href : data.download_url)
             : null);
-      setDownloadUrl(bestUrl);
-      // Try to immediately trigger a download without opening a new tab
-      if (bestUrl) {
+      setJobs((prev) => prev.map((j) => j.id === id ? { ...j, status: 'success', downloadUrl: bestUrl } : j));
+      const w = jobWindowsRef.current.get(id);
+      if (bestUrl && w && !w.closed) {
+        try {
+          w.location.href = bestUrl;
+        } catch (_) {
+          // fallback below
+        }
+      } else if (bestUrl) {
         try {
           const a = document.createElement('a');
           a.href = bestUrl;
@@ -56,22 +97,30 @@ export default function Home() {
           // ignore; user can click the link manually
         }
       }
+      if (w && !bestUrl) {
+        try { w.close(); } catch (_) {}
+      }
+      jobWindowsRef.current.delete(id);
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
+        setJobs((prev) => prev.map((j) => j.id === id ? { ...j, status: 'error', error: err.message } : j));
       } else {
         setError('An unknown error occurred.');
+        setJobs((prev) => prev.map((j) => j.id === id ? { ...j, status: 'error', error: 'An unknown error occurred.' } : j));
       }
-    } finally {
-      setLoading(false);
+      const w = jobWindowsRef.current.get(id);
+      if (w) {
+        try { w.close(); } catch (_) {}
+      }
+      jobWindowsRef.current.delete(id);
     }
   };
 
   const platforms = [
-    // { name: 'YouTube', icon: Video, color: 'text-blue-400' },
     { name: 'Instagram', icon: Instagram, color: 'text-purple-400' },
     { name: 'Facebook', icon: Facebook, color: 'text-blue-500' },
-    { name: 'TikTok', icon: Video, color: 'text-purple-500' }
+    { name: 'TikTok', icon: TikTokIcon, color: 'text-white' }
   ];
 
   return (
@@ -310,7 +359,7 @@ export default function Home() {
         
         .platform-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 1rem;
           margin-bottom: 2rem;
           justify-items: center;
@@ -603,13 +652,14 @@ export default function Home() {
           }
           
           .platform-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            padding: 0 0.5rem;
           }
           
           .platform-icon {
-            width: 55px;
-            height: 55px;
+            width: 48px;
+            height: 48px;
           }
           
           .orb-1, .orb-2, .orb-3 {
@@ -631,9 +681,15 @@ export default function Home() {
             font-size: 1.75rem;
           }
           
+          .platform-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            padding: 0 0.5rem;
+          }
+          
           .platform-icon {
-            width: 50px;
-            height: 50px;
+            width: 42px;
+            height: 42px;
           }
           
           .video-input {
@@ -717,49 +773,66 @@ export default function Home() {
 
               <button
                 onClick={handleDownload}
-                disabled={loading || !videoLink}
+                disabled={!videoLink}
                 className="download-btn"
               >
                 <div className="btn-glow"></div>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
-                  {loading ? (
-                    <>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25"></circle>
-                        <path fill="currentColor" opacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Processing Magic...</span>
-                    </>
-                  ) : (
-                    <>
                       <Download size={20} />
                       <span>Download Video</span>
-                    </>
-                  )}
                 </div>
               </button>
             </div>
 
-            {/* Download Result */}
-            {downloadUrl && (
+            {/* Jobs Status List */}
+            {jobs.length > 0 && (
+              <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {jobs.map((job) => (
+                  <div key={job.id}>
+                    {job.status === 'processing' && (
+                      <div className="success-card" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(99, 102, 241, 0.15) 50%, rgba(59, 130, 246, 0.25) 100%)', borderColor: 'rgba(59, 130, 246, 0.4)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25"></circle>
+                            <path fill="currentColor" opacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <p style={{ color: '#c7d2fe', fontWeight: 700, margin: 0 }}>Processing…</p>
+                            <span style={{ color: '#93c5fd', fontSize: '0.85rem', wordBreak: 'break-all' }}>{job.url}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {job.status === 'success' && (
               <div className="success-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
                   <div style={{ position: 'relative' }}>
                     <div className="status-indicator success"></div>
                     <div style={{ position: 'absolute', inset: '0', width: '18px', height: '18px', background: '#22c55e', borderRadius: '50%', animation: 'ping-particle 2s infinite', opacity: '0.6' }}></div>
                   </div>
-                  <p style={{ color: '#86efac', fontWeight: '700', fontSize: '1.1rem' }}>✨ Ready to download!</p>
+                          <p style={{ color: '#86efac', fontWeight: '700', fontSize: '1.1rem', margin: 0 }}>✨ Ready to download!</p>
                 </div>
-                <a
-                  href={downloadUrl}
-                  download
-                  className="download-link"
-                >
+                        {job.downloadUrl && (
+                          <a href={job.downloadUrl} download className="download-link">
                   <div style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.2)', borderRadius: '0.5rem' }}>
                     <Download size={18} />
                   </div>
                   <span>Click here to download your video</span>
                 </a>
+                        )}
+                      </div>
+                    )}
+                    {job.status === 'error' && (
+                      <div className="error-card">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+                          <div className="status-indicator error"></div>
+                          <p style={{ color: '#fca5a5', fontWeight: '700', fontSize: '1.05rem', margin: 0 }}>Download failed</p>
+                        </div>
+                        <p style={{ color: '#fecaca', fontSize: '0.9rem', lineHeight: 1.5, margin: 0 }}>{job.error}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
 
