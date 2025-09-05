@@ -14,6 +14,8 @@ import shutil
 import subprocess
 import json
 from urllib.parse import urlparse
+import httpx
+import asyncio
 
 app = FastAPI()
 
@@ -301,3 +303,21 @@ async def files_download(filename: str, background_tasks: BackgroundTasks):
 FRONTEND_BUILD_DIR = BASE_DIR / "frontend" / "out"
 if FRONTEND_BUILD_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_BUILD_DIR), html=True), name="frontend")
+
+BACKEND_URL = os.getenv("BACKEND_URL", "https://watsapp-backend-mscv.onrender.com")
+PING_INTERVAL = 10 * 60  # 10 minutes in seconds
+
+async def ping_server():
+    while True:
+        await asyncio.sleep(PING_INTERVAL)
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{BACKEND_URL}/healthz")
+                print(f"Keep-alive ping: {response.status_code} at {time.time()}")
+        except Exception as e:
+            print(f"Keep-alive error: {e} at {time.time()}")
+
+@app.on_event("startup")
+async def startup_event():
+    print(f"Keep-alive service started. Pinging {BACKEND_URL}/healthz every {PING_INTERVAL / 60} minutes...")
+    asyncio.create_task(ping_server())
