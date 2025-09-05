@@ -304,7 +304,7 @@ FRONTEND_BUILD_DIR = BASE_DIR / "frontend" / "out"
 if FRONTEND_BUILD_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_BUILD_DIR), html=True), name="frontend")
 
-BACKEND_URL = os.getenv("BACKEND_URL", "https://watsapp-backend-mscv.onrender.com")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://sage-video-downloader.onrender.com")
 PING_INTERVAL = 10 * 60  # 10 minutes in seconds
 
 async def ping_server():
